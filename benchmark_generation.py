@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 
 def generate_tsmd_ts(df, kappa):
+    df = df.reset_index(drop=True)
+    
     freqs   = df['label'].value_counts()
     
     classes = freqs.index
