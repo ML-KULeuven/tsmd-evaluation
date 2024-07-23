@@ -2,6 +2,7 @@ import numpy as np
 import time
 import pandas as pd
 import scipy.optimize
+import sklearn.metrics as skmetrics
 
 ## MATCH MATRIX
 def overlap_union_ratio(s, e, s_gt, e_gt):
@@ -87,10 +88,13 @@ def micro_averaged_recall(match_matrix):
 
 def micro_averaged_precision(match_matrix, penalize_additional=False):
     g, d = match_matrix.shape[0] - 1, match_matrix.shape[1] - 1
+    # Should be nan.
+    if d == 0:
+        return 0.0
+        
     m = min(g, d)
-
     diag = np.diag(match_matrix[:m, :m])
-    
+
     if penalize_additional:
         return np.sum(diag) / np.sum(match_matrix[:, :d])
     else:
@@ -99,6 +103,8 @@ def micro_averaged_precision(match_matrix, penalize_additional=False):
 def micro_averaged_f1(match_matrix, penalize_additional=False):
     p = micro_averaged_precision(match_matrix, penalize_additional=penalize_additional)
     r  = micro_averaged_recall(match_matrix)
+    if (p == 0.0 and r == 0.0) or np.isnan(p):
+        return 0
     return 2 * r * p / (p + r)
 
 ## MACRO-AVERAGED METRICS
@@ -145,3 +151,81 @@ def pretty_print_match_matrix(match_matrix, row_names, col_names):
     table[-1].insert(0, "FD")
     table[-1][-1] = "-"
     return tabulate(table, [], tablefmt="grid")
+
+
+## OTHER METRICS
+# Score
+def score_metric(gt_sets, discovered_sets, penalize_additional=False):
+    if type(gt_sets) is dict:
+        gt_sets   = list(gt_sets.values())
+    g, d = len(gt_sets), len(discovered_sets)
+    m = max(g, d)
+    
+    matrix = np.zeros((g, d))
+    for i in range(g):
+        for j in range(d):
+            gt_set = gt_sets[i]
+            discovered_set = discovered_sets[j]
+            matrix[i, j] = optimal_score(gt_set, discovered_set)
+
+    r, c = scipy.optimize.linear_sum_assignment(matrix, maximize=False)
+    score = np.sum(matrix[r, c])
+
+    if d < g:
+        i_unmatched = np.setdiff1d(range(g), r)
+        for i in i_unmatched:
+            score += sum([e-s for (s, e) in gt_sets[i]])
+    elif d > g:
+        if penalize_additional:
+            j_unmatched = np.setdiff1d(range(d), c) 
+            for j in j_unmatched:
+                score += sum([e-s for (s, e) in discovered_sets[j]])
+    
+    return score
+    
+def optimal_score(gt_set, discovered_set):    
+    k, k_gt = len(discovered_set), len(gt_set)
+    
+    matrix = np.full((k_gt + k, k + k_gt), np.inf)
+    for i in range(k_gt):
+        (s_gt, e_gt) = gt_set[i]
+        for j in range(k):
+            (s, e) = discovered_set[j]
+            # if overlapping
+            if s_gt < e and s < e_gt:
+                matrix[i, j] = abs(s_gt - s) 
+        
+    for i in range(k_gt):
+        (s_gt, e_gt) = gt_set[i]
+        matrix[i, k:] = e_gt - s_gt
+        
+    for j in range(k):
+        (s, e) = discovered_set[j]
+        matrix[k_gt:, j] = e - s
+        
+    matrix[k_gt:, k:] = 0
+
+    r, c = scipy.optimize.linear_sum_assignment(matrix, maximize=False)
+    score = np.sum(matrix[r, c])
+    return score
+
+# Correctness
+def correctness(gt_sets, discovered_sets, threshold=0.5):
+    if type(gt_sets) is dict:
+        gt_sets   = list(gt_sets.values())
+    
+    g, d = len(gt_sets), len(discovered_sets)
+    
+    matrix = np.zeros((g, d))
+    for i in range(g):
+        for j in range(d):
+            gt_set, discovered_set = gt_sets[i], discovered_sets[j]
+            matrix[i, j] = np.sum([overlap_union_ratio(s, e, s_gt, e_gt) for (s, e) in discovered_set for (s_gt, e_gt) in gt_set if overlap_union_ratio(s, e, s_gt, e_gt) > threshold]) / len(gt_set)
+    
+    # I do this optimally because the authors do not specify how to.
+    r, c = scipy.optimize.linear_sum_assignment(matrix, maximize=True)
+    correctness = np.sum(matrix[r, c])
+    return correctness
+
+
+
