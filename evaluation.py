@@ -73,7 +73,41 @@ def match_matrix(gt, discovered_sets, threshold=0.5):
         [mm, md],
         [fd, 0 ] 
     ])
+    if possible_tie(M):
+        M, r_perm, c_perm = break_ties(M, r_perm, c_perm)
+    
     return M, row_names[r_perm], column_names[c_perm]
+
+
+def possible_tie(M):
+    (g, d) = M.shape[0] - 1, M.shape[1] - 1 
+    if g >= d:
+        return False
+        
+    for i in range(g):
+        tp = M[i, i]
+        if np.sum(M[i, :d] == tp) > 1: return True
+    return False
+
+    
+def break_ties(M, r, c):
+    (g, d) = M.shape[0] - 1, M.shape[1] - 1 
+    mm = np.zeros((g, d))
+    
+    for i in range(g):
+        tp = M[i, i]
+        fp = np.sum(M[:, :d], axis=0, dtype=float) - M[i, :d]
+        fp[~(M[i, :d] == tp)] = np.inf
+        mm[i, :] = fp
+
+    r_, c_ = scipy.optimize.linear_sum_assignment(mm, maximize=False)
+
+    r_ = np.concatenate((r_, [g]))
+    c_ = np.concatenate((c_, np.setdiff1d(range(d), c_), [d]))
+
+    M = M[r_, :]
+    M = M[:, c_]
+    return M, r[r_[:g]], c[c_[:d]]
 
 
 ## MICRO-AVERAGED METRICS
@@ -225,7 +259,9 @@ def correctness(gt_sets, discovered_sets, threshold=0.5):
     # I do this optimally because the authors do not specify how to.
     r, c = scipy.optimize.linear_sum_assignment(matrix, maximize=True)
     correctness = np.sum(matrix[r, c])
-    return correctness
 
-
-
+    m = min(g, d)
+    assert len(r) == len(c) == min(g, d)
+    if m == 0:
+        return 0.0
+    return correctness / m
