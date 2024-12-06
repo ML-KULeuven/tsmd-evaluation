@@ -1,0 +1,26 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ['tsmd_evaluation']
+
+[project]
+name = "tsmd-evaluation"
+version = "0.1.0"
+description = "Evaluation metrics and a benchmark generation procedure for Time Series Motif Discovery (TSMD)"
+readme = "README.md"
+authors = [{ name = "Daan Van Wesenbeeck" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["time series", "motif sets", "evaluation"]
+requires-python = ">=3.8"
+dependencies = [
+    'matplotlib >=3.0, < 4.0',
+]
