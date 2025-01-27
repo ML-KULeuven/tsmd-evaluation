@@ -71,3 +71,46 @@ def generate_tsmd_benchmark_dataset(df, N, g_min, g_max):
         
     benchmark_dataset = pd.DataFrame({'ts': benchmark_ts, 'gt': gts})
     return benchmark_dataset
+
+
+def generate_random_walk(n, start_value=0, loc=0, scale=1):
+    # Generate random steps (e.g., from a normal distribution with mean 0 and standard deviation 1)
+    steps = np.random.normal(loc=loc, scale=scale, size=n)
+    # Compute the random walk by taking the cumulative sum of the steps
+    random_walk = np.cumsum(steps)
+    # Add the starting value
+    random_walk = start_value + random_walk
+    return random_walk
+    
+
+def generate_benchmark_ts_with_random_walk(n, ts_instances, loc=0, scale=1):
+
+    total_motifs = sum([len(instances)  for instances in ts_instances.values()])
+    total_length = sum([len(instance)-1 for instances in ts_instances.values() for instance in instances])
+    
+    n_random = n - total_length
+
+    # Generate random walk of length n
+    t = generate_random_walk(n_random, start_value=0, loc=loc, scale=scale)
+    # Generate a set of unique random indices
+    indices = np.random.choice(n_random, size=total_motifs, replace=False)
+        
+    i = 0
+    for label, instances in ts_instances.items():
+        for instance in instances:
+            l = len(instance)
+            index = indices[i]
+
+            t = np.concatenate((t[:index], instance + t[index], t[index+1:]))
+            indices[index<indices] += (l-1)
+            
+            i += 1
+
+    gt = {label: [] for label in ts_instances.keys()}
+    i = 0
+    for label, instances in ts_instances.items():
+        for instance in instances:
+            gt[label].append((indices[i], indices[i]+len(instance)))
+            i += 1
+
+    return t, gt
