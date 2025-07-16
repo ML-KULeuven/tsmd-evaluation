@@ -1,7 +1,13 @@
 import pandas as pd
 import numpy as np
 
-def generate_tsmd_benchmark_ts(df, g=2):
+def add_noise(ts, noise_std=0.1):
+    noise = np.random.normal(loc=0, scale=noise_std, size=ts.shape)
+    return ts + noise
+    
+def generate_tsmd_benchmark_ts(df, g=2, noise_std=0.0, noise_on='none'):
+    assert noise_on in ['none', 'motifs', 'non_motifs', 'all']
+    
     freqs   = df['label'].value_counts()
     
     classes = freqs.index
@@ -27,7 +33,13 @@ def generate_tsmd_benchmark_ts(df, g=2):
 
     all_motifs = pd.concat((motifs, other_motifs))    
     all_motifs = all_motifs.sample(frac=1).reset_index(drop=True)
-            
+
+    if noise_on in ['motifs', 'all']:
+        all_motifs['ts'] = all_motifs['ts'].apply(lambda ts: add_noise(ts, noise_std))
+        other_motifs['ts'] = other_motifs['ts'].apply(lambda ts: add_noise(ts, noise_std))
+    if noise_on in ['non_motifs', 'all']:
+        X_non_repeating['ts'] = X_non_repeating['ts'].apply(lambda ts: add_noise(ts, noise_std))
+    
     gt = {c: [] for c in repeating_classes}
     ts = []
 
